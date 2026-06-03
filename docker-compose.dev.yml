@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sakura-postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: sakura_db
+    ports:
+      - '5434:5432'
+    volumes:
+      - dlm-pgdata:/var/lib/postgresql/data
+
+volumes:
+  dlm-pgdata:
