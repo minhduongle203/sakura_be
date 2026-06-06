@@ -4,14 +4,6 @@ import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import { Session } from '../../entities/sesson.entity';
 
-interface SessionDto {
-  userId: string;
-  rawToken: string;
-  expiresAt: Date;
-  userAgent?: string;
-  ipAddress?: string;
-}
-
 @Injectable()
 export class SessionsService {
   constructor(
@@ -25,7 +17,13 @@ export class SessionsService {
   }
 
   // Tạo một session mới với thông tin người dùng
-  create(data: SessionDto) {
+    create(data: {
+        userId: string;
+        rawToken: string;
+        expiresAt: Date;
+        userAgent?: string;
+        ipAddress?: string;
+    }) {
     const session = this.sessionsRepo.create({
       userId: data.userId,
       refreshTokenHash: this.hashToken(data.rawToken),

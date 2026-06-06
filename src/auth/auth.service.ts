@@ -10,7 +10,7 @@ import { SignUpDto } from './dto/sign-up.dto';
 import { SignInDto } from './dto/sign-in.dto';
 import { Request, Response } from 'express';
 import { UsersService } from '../modules/user/user.service';
-import { SessionsService } from '../modules/sesson/seisson.service';
+import { SessionsService } from '../modules/session/seisson.service';
 
 const ACCESS_TOKEN_TTL: any = process.env.ACCESS_TOKEN_TTL;
 const REFRESH_TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000;
