@@ -1,5 +1,5 @@
 import {Module} from "@nestjs/common";
-import {SessionsService} from "./seisson.service";
+import {SessionsService} from "./session.service";
 import {TypeOrmModule} from "@nestjs/typeorm";
 import {Session} from "../../entities/sesson.entity";
 

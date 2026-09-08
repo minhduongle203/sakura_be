@@ -1,14 +1,15 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import {Module} from '@nestjs/common';
+import {ConfigModule, ConfigService} from '@nestjs/config';
 import databaseConfig from './database.config';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { DatabaseConfigService } from './postgres-config';
+import {TypeOrmModule} from '@nestjs/typeorm';
+import {DatabaseConfigService} from './postgres-config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       load: [databaseConfig],
+      envFilePath: ['.env.local', '.env'],
     }),
 
     TypeOrmModule.forRootAsync({

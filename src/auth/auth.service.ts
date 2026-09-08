@@ -10,9 +10,9 @@ import { SignUpDto } from './dto/sign-up.dto';
 import { SignInDto } from './dto/sign-in.dto';
 import { Request, Response } from 'express';
 import { UsersService } from '../modules/user/user.service';
-import { SessionsService } from '../modules/session/seisson.service';
+import { SessionsService } from '../modules/session/session.service';
 
-const ACCESS_TOKEN_TTL: any = process.env.ACCESS_TOKEN_TTL;
+const ACCESS_TOKEN_TTL: any = process.env.ACCESS_TOKEN_TTL ?? '15m';
 const REFRESH_TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 
 @Injectable()
@@ -23,16 +23,20 @@ export class AuthService {
   ) {}
 
   async signUp(dto: SignUpDto) {
-    const existing = await this.usersService.findByUsername(dto.username);
-    if (existing) throw new ConflictException('Username đã tồn tại');
+    const existingUsername = await this.usersService.findByUsername(dto.username);
+    if (existingUsername) throw new ConflictException('Username đã tồn tại');
+
+    const existingEmail = await this.usersService.findByEmail(dto.email);
+    if (existingEmail) throw new ConflictException('Email đã được sử dụng');
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
-    await this.usersService.create({
-      username: dto.username,
-      hashedPassword,
-      email: dto.email,
-      displayName: `${dto.firstName} ${dto.lastName}`,
-    });
+    const data = {
+        username: dto.username,
+        hashedPassword,
+        email: dto.email,
+        displayName: `${dto.firstName} ${dto.lastName}`,
+    }
+    await this.usersService.create(data);
   }
 
   async signIn(dto: SignInDto, res: Response, req: Request) {
@@ -47,13 +51,15 @@ export class AuthService {
     if (!match)
       throw new UnauthorizedException('Username hoặc password không chính xác');
 
+    // Cập nhật thời điểm đăng nhập gần nhất
+    await this.usersService.updateLastLogin(user.id);
+
     // Tạo access token
     const accessToken = jwt.sign(
       { userId: user.id },
       process.env.ACCESS_TOKEN_SECRET || 'default_secret',
       { expiresIn: ACCESS_TOKEN_TTL },
     );
-      console.log(accessToken)
 
     // Tạo refresh token và lưu vào database
     const rawRefreshToken = crypto.randomBytes(64).toString('hex');
@@ -68,10 +74,11 @@ export class AuthService {
     });
 
     // Gửi refresh token về client qua cookie
+    const isProd = process.env.NODE_ENV === 'production';
     res.cookie('refreshToken', rawRefreshToken, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax',
       maxAge: REFRESH_TOKEN_TTL_MS,
     });
 
@@ -88,7 +95,7 @@ export class AuthService {
         return { message: 'Đã logged out' };
     }
 
-  async refresh(rawToken: string) {
+  async refresh(rawToken: string, res: Response) {
       // Kiểm tra token tồn tại
     if (!rawToken) throw new UnauthorizedException('Token không tồn tại');
 
@@ -101,11 +108,34 @@ export class AuthService {
       throw new UnauthorizedException('Token đã hết hạn');
     }
 
+    // Xoay vòng refresh token: hủy session cũ, phát hành token mới
+    // để nếu token cũ từng bị lộ thì cũng không dùng lại được nữa
+    await this.sessionsService.deleteByToken(rawToken);
+
+    const newRawRefreshToken = crypto.randomBytes(64).toString('hex');
+    await this.sessionsService.create({
+      userId: session.userId,
+      rawToken: newRawRefreshToken,
+      expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
+      userAgent: session.userAgent,
+      ipAddress: session.ipAddress,
+    });
+
+    const isProd = process.env.NODE_ENV === 'production';
+    res.cookie('refreshToken', newRawRefreshToken, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax',
+      maxAge: REFRESH_TOKEN_TTL_MS,
+    });
+
     // Tạo access token mới
-    return jwt.sign(
+    const accessToken = jwt.sign(
       { userId: session.userId },
       process.env.ACCESS_TOKEN_SECRET || 'default_secret',
       { expiresIn: ACCESS_TOKEN_TTL },
     );
+
+    return { accessToken };
   }
 }
